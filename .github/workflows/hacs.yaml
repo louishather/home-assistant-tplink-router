@@ -1,9 +1,10 @@
 
 ---
 name: Validate HACS
+# Fork: manual only. HACS repo validation is for the upstream default listing (it fails on a
+# fork: no description/topics/issues), and the fork is installed as a custom repository.
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 jobs:
   ci:
     runs-on: ubuntu-latest
