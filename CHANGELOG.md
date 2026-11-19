@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.47.0-lh.1] - 2026-11-19 (fork: louishather/home-assistant-tplink-router)
+
+### Added
+
+- DHCP Leases sensor: lease count as the state, the current leases (MAC, IP, hostname, lease time) as an attribute kept out of the recorder. Polled with the other data; on by default, with an "Include DHCP leases sensor" option. Routers without `get_ipv4_dhcp_leases`, or whose first read fails at setup, get no sensor. A failed poll keeps the last known leases.
+
 ## [2.47.0] - 2026-11-18
 
 ### Added

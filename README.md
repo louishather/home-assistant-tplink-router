@@ -69,6 +69,7 @@ Status sensors (client counts, CPU/memory, WAN/LAN addresses, …) are created o
  - WAN IPv4 Address
  - LAN IPv4 Address
  - DHCP Reservations (count; full lease list in attributes — on routers with `get_ipv4_reservations`, when enabled in options)
+- DHCP Leases (count; current leases with MAC, IP, hostname and lease time in attributes, not recorded — on routers with `get_ipv4_dhcp_leases`, when enabled in options)
  - Mesh node backhaul (Deco / EasyMesh with backhaul metrics): signal 2.4/5 GHz, RX/TX rate 2.4/5 GHz, internet status — one diagnostic sensor per reported metric, on the mesh node device from the tracker platform (only when device tracking is enabled)
 
 For LTE Routers
@@ -267,7 +268,8 @@ You may edit configuration data like:
 10. Include device trackers (disable for non-AP routers to avoid duplicate entries)
 11. Nest each tracked client under the router device (off by default; clients always get a MAC-linked device; disabling later does not remove already-created device cards)
 12. Include DHCP reservations sensor and add/delete services (default on)
-13. Include LTE serving cells sensors (default on; disable to skip probing/polling on routers without this feature)
+13. Include DHCP leases sensor (default on)
+14. Include LTE serving cells sensors (default on; disable to skip probing/polling on routers without this feature)
 
 Transient poll failures (timeouts, dropped connections, session expiry) are retried automatically. Authorization failures (wrong password / HTTP 401) are not retried. A failing SMS mailbox fetch does not fail the whole update.
 An unreachable router during setup fails only that config entry (`Failed to set up`) and does not block other TP-Link Router entries.

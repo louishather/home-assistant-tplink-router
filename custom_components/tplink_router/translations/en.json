@@ -22,6 +22,7 @@
           "support_tracker": "Include device trackers (disable for non-access-point routers to avoid duplicates)",
           "tracker_as_device": "Nest each tracked client under the router device (off by default; clients always get a device linked by MAC)",
           "support_dhcp_reservations": "Include DHCP reservations sensor and add/delete services",
+          "support_dhcp_leases": "Include DHCP leases sensor",
           "support_serving_cells": "Include LTE serving cells sensors"
         }
       }
@@ -45,6 +46,7 @@
           "support_tracker": "Include device trackers (disable for non-access-point routers to avoid duplicates)",
           "tracker_as_device": "Nest each tracked client under the router device (off by default; clients always get a device linked by MAC)",
           "support_dhcp_reservations": "Include DHCP reservations sensor and add/delete services",
+          "support_dhcp_leases": "Include DHCP leases sensor",
           "support_serving_cells": "Include LTE serving cells sensors"
         }
       }

@@ -23,6 +23,10 @@ from tplinkrouterc6u import (
     RouterPortStatus,
     IPv4Reservation,
 )
+try:
+    from tplinkrouterc6u import IPv4DHCPLease
+except ImportError:  # pragma: no cover - older tplinkrouterc6u without DHCP leases
+    IPv4DHCPLease = Any  # type: ignore[misc, assignment]
 
 try:
     from tplinkrouterc6u import MeshNode
@@ -102,10 +106,11 @@ def collect_status(
         access_control: AccessControlStatus | None = None,
         blocked_devices: list[BlockedDevice] | None = None,
         poll_access_control_status: bool = True,
+        dhcp_leases: list[IPv4DHCPLease] | None = None,
 ) -> tuple[Status, LTEStatus | None, list[ServingCell] | None, VPNStatus | None,
            VpnClientStatus | None, list[PortStatus | RouterPortStatus] | None, list[SMS] | None,
            list[IPv4Reservation] | None, list[MeshNode] | None, bool | None,
-           AccessControlStatus | None, list[BlockedDevice] | None]:
+           AccessControlStatus | None, list[BlockedDevice] | None, list[IPv4DHCPLease] | None]:
     """Gather all status data from the router; a failing SMS fetch must not break the update."""
     status = router.get_status()
     sms_list = None
@@ -125,6 +130,11 @@ def collect_status(
         sms_list = safe_call(router.get_sms, logger, "fetch SMS")
     if reservations is not None:
         reservations = safe_call(router.get_ipv4_reservations, logger, "fetch IPv4 reservations")
+    # Keep the last known leases when one poll fails; None (disabled/unsupported) is never asked for.
+    if dhcp_leases is not None:
+        dhcp_leases = safe_call(
+            router.get_ipv4_dhcp_leases, logger, "fetch IPv4 DHCP leases", default=dhcp_leases
+        )
     if led_status is not None:
         led_status = safe_call(
             router.led_status, logger, "fetch LED status", level=logging.DEBUG
@@ -154,6 +164,7 @@ def collect_status(
         led_status,
         access_control,
         blocked_devices,
+        dhcp_leases,
     )
 
 
@@ -182,6 +193,7 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
             led_status: bool | None = None,
             access_control: AccessControlStatus | None = None,
             blocked_devices: list[BlockedDevice] | None = None,
+            dhcp_leases: list[IPv4DHCPLease] | None = None,
     ) -> None:
         self.router = router
         # ConfigEntry.entry_id (not the flow unique_id / LAN MAC). Used in entity
@@ -219,6 +231,8 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
         self.vpn_client_status = vpn_client_status
         self.reservations: list[IPv4Reservation] | None = reservations
         self.support_dhcp_reservations = support_dhcp_reservations
+        # list (incl. []) means "ask each poll"; None means disabled or unsupported.
+        self.dhcp_leases: list[IPv4DHCPLease] | None = dhcp_leases
 
         self.scan_stopped_at: datetime | None = None
         self._last_update_time: datetime | None = None
@@ -387,6 +401,7 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
                     self.access_control,
                     self.blocked_devices,
                     poll_access_control_status=poll_ac_status,
+                    dhcp_leases=getattr(self, "dhcp_leases", None),
                 ),
             )
 
@@ -421,6 +436,7 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
                         self.led_status,
                         self.access_control,
                         self.blocked_devices,
+                        self.dhcp_leases,
                     ) = await self.hass.async_add_executor_job(update_once)
 
                 if sms_list is not None:

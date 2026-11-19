@@ -20,6 +20,7 @@ from .const import (
     CONF_SUPPORT_VPN,
     CONF_SUPPORT_TRACKER,
     CONF_SUPPORT_DHCP_RESERVATIONS,
+    CONF_SUPPORT_DHCP_LEASES,
     CONF_SUPPORT_SERVING_CELLS,
     CONF_SCAN_RETRIES,
     CONF_SCAN_BACKOFF,
@@ -103,6 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     verify_ssl = entry.data[CONF_VERIFY_SSL] if CONF_VERIFY_SSL in entry.data else False
     support_vpn = entry.data.get(CONF_SUPPORT_VPN, True)
     support_dhcp_reservations = entry.data.get(CONF_SUPPORT_DHCP_RESERVATIONS, True)
+    support_dhcp_leases = entry.data.get(CONF_SUPPORT_DHCP_LEASES, True)
     support_serving_cells = entry.data.get(CONF_SUPPORT_SERVING_CELLS, True)
 
     try:
@@ -213,6 +215,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         client.__class__.__name__,
                         err,
                     )
+            # Probe DHCP leases once: None (unsupported or failed) means no sensor and no polling.
+            dhcp_leases = None
+            if support_dhcp_leases and hasattr(client, "get_ipv4_dhcp_leases"):
+                try:
+                    dhcp_leases = client.get_ipv4_dhcp_leases()
+                except Exception as err:
+                    _LOGGER.debug(
+                        "TP-Link router %s: get_ipv4_dhcp_leases failed: %s",
+                        client.__class__.__name__,
+                        err,
+                    )
             # Probe EasyMesh once so node trackers exist before the first poll.
             # None = unsupported (stop asking); a list (even empty) keeps polling.
             mesh_nodes = collect_mesh_nodes(client, _LOGGER)
@@ -256,6 +269,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 led_status,
                 access_control,
                 blocked_devices,
+                dhcp_leases,
             )
 
         (
@@ -272,6 +286,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             led_status,
             access_control,
             blocked_devices,
+            dhcp_leases,
         ) = await hass.async_add_executor_job(
             TPLinkRouterCoordinator.request, client, callback
         )
@@ -301,7 +316,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                           mesh_nodes=mesh_nodes,
                                           led_status=led_status,
                                           access_control=access_control,
-                                          blocked_devices=blocked_devices)
+                                          blocked_devices=blocked_devices,
+                                          dhcp_leases=dhcp_leases)
 
     if sms_list is not None:
         coordinator._process_sms_list(sms_list)

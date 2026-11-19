@@ -702,6 +702,9 @@ async def async_setup_entry(
     if coordinator.reservations is not None:
         sensors.append(TPLinkRouterReservationsSensor(coordinator))
 
+    if coordinator.dhcp_leases is not None:
+        sensors.append(TPLinkRouterDHCPLeasesSensor(coordinator))
+
     async_add_entities(sensors, False)
 
     tracked: set[int] = set()
@@ -846,6 +849,45 @@ class TPLinkRouterReservationsSensor(CoordinatorEntity[TPLinkRouterCoordinator],
                     "enabled": r.enabled,
                 }
                 for r in self.coordinator.reservations
+            ]
+        }
+
+
+class TPLinkRouterDHCPLeasesSensor(CoordinatorEntity[TPLinkRouterCoordinator], SensorEntity):
+    """Current DHCP leases: count as the state, the lease list as an attribute."""
+
+    _attr_has_entity_name = True
+    # The list changes every poll as lease times count down; keep it out of the recorder.
+    _unrecorded_attributes = frozenset({"leases"})
+
+    def __init__(self, coordinator: TPLinkRouterCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_device_info = coordinator.device_info
+        self._attr_unique_id = f"{coordinator.unique_id}_{DOMAIN}_dhcp_leases"
+        self.entity_description = SensorEntityDescription(
+            key="dhcp_leases",
+            name="DHCP Leases",
+            icon="mdi:ip-network-outline",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+
+    @property
+    def native_value(self) -> int | None:
+        if self.coordinator.dhcp_leases is None:
+            return None
+        return len(self.coordinator.dhcp_leases)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "leases": [
+                {
+                    "mac": lease.macaddr,
+                    "ip": lease.ipaddr,
+                    "hostname": lease.hostname or "",
+                    "lease_time": lease.lease_time or "",
+                }
+                for lease in self.coordinator.dhcp_leases or []
             ]
         }
 

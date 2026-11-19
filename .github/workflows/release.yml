@@ -4,6 +4,10 @@ on:
   release:
     types:
       - "published"
+  # Fork: pushing a version tag (e.g. 2.47.0-lh.1) creates the release with the ZIP HACS installs
+  push:
+    tags:
+      - "*.*.*"
 
 permissions: {}
 
@@ -20,7 +24,7 @@ jobs:
       - name: "Adjust version number"
         shell: "bash"
         run: |
-          yq -i -o json '.version="${{ github.event.release.tag_name }}"' \
+          yq -i -o json '.version="${{ github.event.release.tag_name || github.ref_name }}"' \
             "${{ github.workspace }}/custom_components/tplink_router/manifest.json"
 
       - name: "ZIP the integration directory"
@@ -32,4 +36,5 @@ jobs:
       - name: "Upload the ZIP file to the release"
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.release.tag_name || github.ref_name }}
           files: ${{ github.workspace }}/custom_components/tplink_router/tplink_router.zip
