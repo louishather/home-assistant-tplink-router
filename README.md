@@ -262,15 +262,16 @@ You may edit configuration data like:
 4. Scan retries (1–10; default 3) — how many times a failed data poll is retried
 5. Scan backoff (0.1–30s; default 1.0) — delay between retries, grows with each attempt
 6. Wait after a failed update (0–3600s; default 120; fork) — once a poll has failed (after its retries), don't log in again for this long, so a router that has locked out logins can recover. Entities stay unavailable meanwhile; buttons, switches and services still try straight away. `0` = off
-7. Scan pause (0–1440 minutes; default 20) — how long "Router data fetching" stays off before auto re-enable (`0` = never auto re-enable)
-8. Offline timeout (0–86400 seconds; default 0) — grace period before a missing device tracker goes offline
-9. Verify https
-10. Include support for VPN server/client (enable/disable VPN status polling and related VPN entities)
-11. Include device trackers (disable for non-AP routers to avoid duplicate entries)
-12. Nest each tracked client under the router device (off by default; clients always get a MAC-linked device; disabling later does not remove already-created device cards)
-13. Include DHCP reservations sensor and add/delete services (default on)
-14. Include DHCP leases sensor (default on)
-15. Include LTE serving cells sensors (default on; disable to skip probing/polling on routers without this feature)
+7. Slow poll interval (0–86400s; default 300; fork) — connected devices and router status are read every scan interval; everything else (DHCP reservations and leases, LED, ports, VPN, Access Control, mesh nodes) at most this often, and on the next update after any change made from Home Assistant. `0` = read everything every update
+8. Scan pause (0–1440 minutes; default 20) — how long "Router data fetching" stays off before auto re-enable (`0` = never auto re-enable)
+9. Offline timeout (0–86400 seconds; default 0) — grace period before a missing device tracker goes offline
+10. Verify https
+11. Include support for VPN server/client (enable/disable VPN status polling and related VPN entities)
+12. Include device trackers (disable for non-AP routers to avoid duplicate entries)
+13. Nest each tracked client under the router device (off by default; clients always get a MAC-linked device; disabling later does not remove already-created device cards)
+14. Include DHCP reservations sensor and add/delete services (default on)
+15. Include DHCP leases sensor (default on)
+16. Include LTE serving cells sensors (default on; disable to skip probing/polling on routers without this feature)
 
 Transient poll failures (timeouts, dropped connections, session expiry) are retried automatically. Authorization failures (wrong password / HTTP 401) are not retried. A failing SMS mailbox fetch does not fail the whole update.
 An unreachable router during setup fails only that config entry (`Failed to set up`) and does not block other TP-Link Router entries.

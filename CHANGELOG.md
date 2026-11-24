@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.48.0-lh.2] - 2026-11-24 (fork: louishather/home-assistant-tplink-router)
+
+### Added
+
+- Slow poll interval (default 300 s, 0 = off): each update reads router status and connected devices (plus LTE/SMS); everything else (DHCP reservations and leases, LED, ports, VPN, Access Control, mesh nodes) is read at most this often, and on the next update after any change made from Home Assistant. Cuts the requests per update on routers with busy CPUs.
+
 ## [2.48.0-lh.1] - 2026-11-24 (fork: louishather/home-assistant-tplink-router)
 
 ### Added

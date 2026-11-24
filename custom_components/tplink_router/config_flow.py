@@ -14,6 +14,7 @@ from .const import (
     DEFAULT_SCAN_PAUSE, DEFAULT_OFFLINE_TIMEOUT, MAX_SCAN_RETRIES, MAX_SCAN_BACKOFF,
     MAX_SCAN_PAUSE, MAX_OFFLINE_TIMEOUT,
     CONF_FAILURE_COOLDOWN, DEFAULT_FAILURE_COOLDOWN, MAX_FAILURE_COOLDOWN,
+    CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL, MAX_SLOW_SCAN_INTERVAL,
 )
 from .coordinator import TPLinkRouterCoordinator
 from homeassistant.const import (
@@ -37,6 +38,10 @@ SCAN_BACKOFF_SCHEMA = vol.All(
 FAILURE_COOLDOWN_SCHEMA = vol.All(
     vol.Coerce(int),
     vol.Range(min=0, max=MAX_FAILURE_COOLDOWN),
+)
+SLOW_SCAN_INTERVAL_SCHEMA = vol.All(
+    vol.Coerce(int),
+    vol.Range(min=0, max=MAX_SLOW_SCAN_INTERVAL),
 )
 SCAN_PAUSE_SCHEMA = vol.All(
     vol.Coerce(int),
@@ -74,6 +79,10 @@ def _user_schema(data: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_FAILURE_COOLDOWN,
                 default=data.get(CONF_FAILURE_COOLDOWN, DEFAULT_FAILURE_COOLDOWN),
             ): FAILURE_COOLDOWN_SCHEMA,
+            vol.Optional(
+                CONF_SLOW_SCAN_INTERVAL,
+                default=data.get(CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL),
+            ): SLOW_SCAN_INTERVAL_SCHEMA,
             vol.Optional(
                 CONF_SCAN_PAUSE,
                 default=data.get(CONF_SCAN_PAUSE, DEFAULT_SCAN_PAUSE),
@@ -225,6 +234,10 @@ class OptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                     CONF_FAILURE_COOLDOWN,
                     default=data.get(CONF_FAILURE_COOLDOWN, DEFAULT_FAILURE_COOLDOWN),
                 ): FAILURE_COOLDOWN_SCHEMA,
+                vol.Optional(
+                    CONF_SLOW_SCAN_INTERVAL,
+                    default=data.get(CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL),
+                ): SLOW_SCAN_INTERVAL_SCHEMA,
                 vol.Optional(
                     CONF_SCAN_PAUSE,
                     default=data.get(CONF_SCAN_PAUSE, DEFAULT_SCAN_PAUSE),

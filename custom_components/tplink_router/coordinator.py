@@ -108,17 +108,31 @@ def collect_status(
         blocked_devices: list[BlockedDevice] | None = None,
         poll_access_control_status: bool = True,
         dhcp_leases: list[IPv4DHCPLease] | None = None,
+        slow: bool = True,
 ) -> tuple[Status, LTEStatus | None, list[ServingCell] | None, VPNStatus | None,
            VpnClientStatus | None, list[PortStatus | RouterPortStatus] | None, list[SMS] | None,
            list[IPv4Reservation] | None, list[MeshNode] | None, bool | None,
            AccessControlStatus | None, list[BlockedDevice] | None, list[IPv4DHCPLease] | None]:
-    """Gather all status data from the router; a failing SMS fetch must not break the update."""
+    """Gather all status data from the router; a failing SMS fetch must not break the update.
+
+    Fork: with slow=False only status/clients, LTE and SMS are read; everything else is passed
+    back unchanged (the slow poll interval reads it).
+    """
     status = router.get_status()
     sms_list = None
     if lte_status is not None:
         lte_status = router.get_lte_status()
     if serving_cells is not None:
         serving_cells = router.get_lte_serving_cells()
+    if not slow:
+        sms_list = None
+        if hasattr(router, "get_sms") and lte_status is not None:
+            sms_list = safe_call(router.get_sms, logger, "fetch SMS")
+        return (
+            status, lte_status, serving_cells, vpn_server_status, vpn_client_status, port_status,
+            sms_list, reservations, mesh_nodes, led_status, access_control, blocked_devices,
+            dhcp_leases,
+        )
     if vpn_server_status is not None:
         vpn_server_status = router.get_vpn_status()
     if vpn_client_status is not None:
@@ -189,6 +203,7 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
             scan_pause_minutes: int = DEFAULT_SCAN_PAUSE,
             offline_timeout_seconds: int = DEFAULT_OFFLINE_TIMEOUT,
             failure_cooldown_seconds: int = 0,
+            slow_scan_interval_seconds: int = 0,
             reservations: list[IPv4Reservation] | None = None,
             support_dhcp_reservations: bool = True,
             mesh_nodes: list[MeshNode] | None = None,
@@ -213,6 +228,10 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
         # Fork: after an update fails (all retries used), don't log in again until this time.
         self.failure_cooldown_seconds = failure_cooldown_seconds
         self.cooldown_until: datetime | None = None
+        # Fork: read the slow data (everything but status/clients) at most this often; 0 = every poll.
+        self.slow_scan_interval_seconds = slow_scan_interval_seconds
+        self._last_slow_update: datetime | None = None
+        self.slow_refresh_requested = False
         # list (incl. []) means "ask each poll"; None means the client cannot provide
         # a node list. Setup probes once so entities exist before the first interval.
         self.mesh_nodes: list[MeshNode] | None = mesh_nodes
@@ -276,9 +295,22 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
 
     async def _run_router_request(self, callback: Callable) -> Any:
         async with self._lock:
-            return await self.hass.async_add_executor_job(
+            result = await self.hass.async_add_executor_job(
                 TPLinkRouterCoordinator.request, self.router, callback
             )
+        # Fork: a change may affect slow data (reservations, LED, access control...): re-read it next poll.
+        self.slow_refresh_requested = True
+        return result
+
+    def _slow_due(self) -> bool:
+        interval = int(getattr(self, "slow_scan_interval_seconds", 0) or 0)
+        last = getattr(self, "_last_slow_update", None)
+        return (
+            interval <= 0
+            or last is None
+            or getattr(self, "slow_refresh_requested", False)
+            or datetime.now() - last >= timedelta(seconds=interval)
+        )
 
     async def reboot(self) -> None:
         await self._run_router_request(self.router.reboot)
@@ -408,8 +440,22 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
         retries = max(1, int(self.retries))
         last_error: Exception | None = None
 
+        slow = self._slow_due()
+
         def update_once():
             # Blacklist every cycle; enable/mode every Nth (get_access_control is 2 reads).
+            if not slow:
+                poll_ac_status = False
+                return TPLinkRouterCoordinator.request(
+                    self.router,
+                    lambda: collect_status(
+                        self.router, self.lte_status, self.serving_cells, self.vpn_server_status,
+                        self.vpn_client_status, self.port_status, self.reservations, self.logger,
+                        self.mesh_nodes, self.led_status, self.access_control, self.blocked_devices,
+                        poll_access_control_status=poll_ac_status,
+                        dhcp_leases=getattr(self, "dhcp_leases", None), slow=False,
+                    ),
+                )
             self._access_control_poll_count += 1
             poll_ac_status = (
                 self._access_control_poll_count % ACCESS_CONTROL_STATUS_POLL_EVERY == 1
@@ -468,6 +514,9 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
                         self.dhcp_leases,
                     ) = await self.hass.async_add_executor_job(update_once)
 
+                if slow:
+                    self._last_slow_update = datetime.now()
+                    self.slow_refresh_requested = False
                 if sms_list is not None:
                     self._process_sms_list(sms_list)
                 self._last_update_time = datetime.now()

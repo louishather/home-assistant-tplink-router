@@ -11,6 +11,7 @@
           "scan_retries": "Number of attempts for each data update",
           "scan_backoff": "Seconds between retries",
           "failure_cooldown": "Seconds to wait after a failed update before logging in again (0 = off)",
+          "slow_scan_interval": "Seconds between reads of everything except connected devices (reservations, leases, LED, ports...; 0 = every update)",
           "scan_pause": "Minutes before data fetching re-enables automatically (0 = never)",
           "offline_timeout": "Seconds a missing device stays 'home' before going offline (0 = immediate)",
           "verify_ssl": "Verify SSL for https connection"
@@ -41,6 +42,7 @@
           "scan_retries": "Number of attempts for each data update",
           "scan_backoff": "Seconds between retries",
           "failure_cooldown": "Seconds to wait after a failed update before logging in again (0 = off)",
+          "slow_scan_interval": "Seconds between reads of everything except connected devices (reservations, leases, LED, ports...; 0 = every update)",
           "scan_pause": "Minutes before data fetching re-enables automatically (0 = never)",
           "offline_timeout": "Seconds a missing device stays 'home' before going offline (0 = immediate)",
           "verify_ssl": "Verify SSL for https connection",
