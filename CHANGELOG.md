@@ -1,15 +1,10 @@
 # Changelog
 
-## [2.48.0-lh.2] - 2026-11-24 (fork: louishather/home-assistant-tplink-router)
-
-### Added
-
-- Slow poll interval (default 300 s, 0 = off): each update reads router status and connected devices (plus LTE/SMS); everything else (DHCP reservations and leases, LED, ports, VPN, Access Control, mesh nodes) is read at most this often, and on the next update after any change made from Home Assistant. Cuts the requests per update on routers with busy CPUs.
-
 ## [2.48.0-lh.1] - 2026-11-24 (fork: louishather/home-assistant-tplink-router)
 
 ### Added
 
+- Slow poll interval (default 300 s, 0 = off): each update reads router status and connected devices (plus LTE/SMS); everything else (DHCP reservations and leases, LED, ports, VPN, Access Control, mesh nodes) is read at most this often, and on the next update after any change made from Home Assistant. Cuts the requests per update on routers with busy CPUs.
 - Wait after a failed update: when an update fails (after its retries), skip polling for a set time (default 120 s, 0 = off) before logging in again, so a router that has locked out logins gets time to recover instead of being hammered every poll. Entities stay unavailable while waiting. Buttons, switches and services still try straight away.
 
 ### Changed
