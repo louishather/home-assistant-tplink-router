@@ -46,7 +46,13 @@ from .const import (
     DEFAULT_SCAN_PAUSE,
     DEFAULT_OFFLINE_TIMEOUT,
 )
-from .utils import safe_call, is_retryable_error
+from homeassistant.exceptions import HomeAssistantError
+from tplinkrouterc6u import ClientError as RouterResponseError
+from .utils import safe_call, is_retryable_error, _is_network_error
+
+
+class SessionTakenOver(Exception):
+    """Fork: the held login stopped working, most likely because someone else logged in."""
 
 
 def supports_led_control(router: AbstractRouter) -> bool:
@@ -204,6 +210,8 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
             offline_timeout_seconds: int = DEFAULT_OFFLINE_TIMEOUT,
             failure_cooldown_seconds: int = 0,
             slow_scan_interval_seconds: int = 0,
+            hold_session: bool = False,
+            yield_minutes: int = 3,
             reservations: list[IPv4Reservation] | None = None,
             support_dhcp_reservations: bool = True,
             mesh_nodes: list[MeshNode] | None = None,
@@ -232,6 +240,12 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
         self.slow_scan_interval_seconds = slow_scan_interval_seconds
         self._last_slow_update: datetime | None = None
         self.slow_refresh_requested = False
+        # Fork: held login. _session_used is when the held session last worked (None = no session).
+        self.hold_session = hold_session
+        self.yield_minutes = yield_minutes
+        self._session_used: datetime | None = None
+        self.yield_until: datetime | None = None
+        self._update_interval_seconds = update_interval
         # list (incl. []) means "ask each poll"; None means the client cannot provide
         # a node list. Setup probes once so entities exist before the first interval.
         self.mesh_nodes: list[MeshNode] | None = mesh_nodes
@@ -293,11 +307,66 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
                 # Do not block updates if logout fails.
                 pass
 
-    async def _run_router_request(self, callback: Callable) -> Any:
-        async with self._lock:
-            result = await self.hass.async_add_executor_job(
-                TPLinkRouterCoordinator.request, self.router, callback
+    def _session_request(self, callback: Callable) -> Any:
+        """Run callback with a login: per request (default) or a held session (fork option).
+
+        With a held session, a request that fails on a session that worked before (and isn't a
+        network error) raises SessionTakenOver: the router dropped HA's login, which on these
+        single-session routers means someone else logged in. Runs in the executor, under _lock.
+        """
+        if getattr(self, "hold_session", False) is not True:
+            return TPLinkRouterCoordinator.request(self.router, callback)
+        last = self._session_used
+        # A session left idle past a couple of update intervals (pauses, cooldowns) may have timed
+        # out on the router; log in again instead of mistaking that for a takeover.
+        idle_limit = timedelta(seconds=max(60, 2 * int(self._update_interval_seconds or 0)))
+        reused = last is not None and datetime.now() - last <= idle_limit
+        if not reused:
+            self._session_used = None
+            self.router.authorize()
+        try:
+            result = callback()
+        except Exception as error:
+            self._session_used = None
+            # Only the router refusing the request itself (ClientError) counts; library checks
+            # such as "reservation already exists" (plain ClientException) are real errors.
+            if reused and isinstance(error, RouterResponseError) and not _is_network_error(error):
+                raise SessionTakenOver(str(error)) from error
+            raise
+        self._session_used = datetime.now()
+        return result
+
+    def close_session(self) -> None:
+        """Log out of a held session (entry unload). Runs in the executor."""
+        if getattr(self, "_session_used", None) is None:
+            return
+        self._session_used = None
+        try:
+            self.router.logout()
+        except Exception:
+            pass
+
+    def _check_not_yielding(self) -> None:
+        yield_until = getattr(self, "yield_until", None)
+        if yield_until is not None and datetime.now() < yield_until:
+            raise HomeAssistantError(
+                "Someone else is logged in to the router; Home Assistant is leaving it alone until "
+                f"{yield_until:%H:%M:%S}. Try again after that."
             )
+
+    async def _run_router_request(self, callback: Callable) -> Any:
+        self._check_not_yielding()
+        async with self._lock:
+            try:
+                result = await self.hass.async_add_executor_job(self._session_request, callback)
+            except SessionTakenOver as error:
+                minutes = int(getattr(self, "yield_minutes", 0) or 0)
+                if minutes > 0:
+                    self.yield_until = datetime.now() + timedelta(minutes=minutes)
+                raise HomeAssistantError(
+                    "Someone else is logged in to the router; Home Assistant will leave it alone "
+                    f"for {minutes} min. Try again after that."
+                ) from error
         # Fork: a change may affect slow data (reservations, LED, access control...): re-read it next poll.
         self.slow_refresh_requested = True
         return result
@@ -413,6 +482,14 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         """Asynchronous update of all data, waiting out the cooldown after a failed update."""
+        yield_until = getattr(self, "yield_until", None)
+        if yield_until is not None:
+            if datetime.now() < yield_until:
+                raise UpdateFailed(
+                    f"Leaving the router alone until {yield_until:%H:%M:%S}: another login took "
+                    "over the session"
+                )
+            self.yield_until = None
         cooldown_until = getattr(self, "cooldown_until", None)
         if cooldown_until is not None:
             if datetime.now() < cooldown_until:
@@ -424,6 +501,20 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
             self.cooldown_until = None
         try:
             await self._async_update_data_with_retries()
+        except SessionTakenOver as error:
+            minutes = int(getattr(self, "yield_minutes", 0) or 0)
+            if minutes > 0:
+                self.yield_until = datetime.now() + timedelta(minutes=minutes)
+            self.logger.warning(
+                "TPLink Router %s: another login took over the session; leaving the router alone "
+                "for %s min (%s)",
+                self.router.host,
+                minutes,
+                error,
+            )
+            raise UpdateFailed(
+                f"Another login took over the router session; waiting {minutes} min"
+            ) from error
         except Exception:
             cooldown = int(getattr(self, "failure_cooldown_seconds", 0) or 0)
             if cooldown > 0:
@@ -446,8 +537,7 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
             # Blacklist every cycle; enable/mode every Nth (get_access_control is 2 reads).
             if not slow:
                 poll_ac_status = False
-                return TPLinkRouterCoordinator.request(
-                    self.router,
+                return self._session_request(
                     lambda: collect_status(
                         self.router, self.lte_status, self.serving_cells, self.vpn_server_status,
                         self.vpn_client_status, self.port_status, self.reservations, self.logger,
@@ -460,8 +550,7 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
             poll_ac_status = (
                 self._access_control_poll_count % ACCESS_CONTROL_STATUS_POLL_EVERY == 1
             )
-            return TPLinkRouterCoordinator.request(
-                self.router,
+            return self._session_request(
                 lambda: collect_status(
                     self.router,
                     self.lte_status,
@@ -521,6 +610,8 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
                     self._process_sms_list(sms_list)
                 self._last_update_time = datetime.now()
                 return
+            except SessionTakenOver:
+                raise
             except Exception as error:
                 if not is_retryable_error(error):
                     raise

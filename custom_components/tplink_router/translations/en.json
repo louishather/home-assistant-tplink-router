@@ -12,6 +12,8 @@
           "scan_backoff": "Seconds between retries",
           "failure_cooldown": "Seconds to wait after a failed update before logging in again (0 = off)",
           "slow_scan_interval": "Seconds between reads of everything except connected devices (reservations, leases, LED, ports...; 0 = every update)",
+          "hold_session": "Stay logged in between updates (fewer logins; logging in to the router's web page pauses Home Assistant)",
+          "yield_minutes": "Minutes to leave the router alone after another login takes over (held login only)",
           "scan_pause": "Minutes before data fetching re-enables automatically (0 = never)",
           "offline_timeout": "Seconds a missing device stays 'home' before going offline (0 = immediate)",
           "verify_ssl": "Verify SSL for https connection"
@@ -43,6 +45,8 @@
           "scan_backoff": "Seconds between retries",
           "failure_cooldown": "Seconds to wait after a failed update before logging in again (0 = off)",
           "slow_scan_interval": "Seconds between reads of everything except connected devices (reservations, leases, LED, ports...; 0 = every update)",
+          "hold_session": "Stay logged in between updates (fewer logins; logging in to the router's web page pauses Home Assistant)",
+          "yield_minutes": "Minutes to leave the router alone after another login takes over (held login only)",
           "scan_pause": "Minutes before data fetching re-enables automatically (0 = never)",
           "offline_timeout": "Seconds a missing device stays 'home' before going offline (0 = immediate)",
           "verify_ssl": "Verify SSL for https connection",

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.48.0-lh.2] - 2026-11-24 (fork: louishather/home-assistant-tplink-router)
+
+### Added
+
+- Stay logged in between updates (option, default off): one login is kept for updates and actions instead of logging in and out every update. When the router refuses a request on that session (another login, e.g. its web page, took it over), Home Assistant leaves the router alone for "Minutes to leave the router alone" (default 3): updates wait, entities are unavailable, and actions are refused with a message saying why. A session idle for more than two update intervals is replaced with a fresh login rather than treated as taken over. The session is logged out when the entry is unloaded.
+
 ## [2.48.0-lh.1] - 2026-11-24 (fork: louishather/home-assistant-tplink-router)
 
 ### Added

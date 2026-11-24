@@ -263,15 +263,17 @@ You may edit configuration data like:
 5. Scan backoff (0.1–30s; default 1.0) — delay between retries, grows with each attempt
 6. Wait after a failed update (0–3600s; default 120; fork) — once a poll has failed (after its retries), don't log in again for this long, so a router that has locked out logins can recover. Entities stay unavailable meanwhile; buttons, switches and services still try straight away. `0` = off
 7. Slow poll interval (0–86400s; default 300; fork) — connected devices and router status are read every scan interval; everything else (DHCP reservations and leases, LED, ports, VPN, Access Control, mesh nodes) at most this often, and on the next update after any change made from Home Assistant. `0` = read everything every update
-8. Scan pause (0–1440 minutes; default 20) — how long "Router data fetching" stays off before auto re-enable (`0` = never auto re-enable)
-9. Offline timeout (0–86400 seconds; default 0) — grace period before a missing device tracker goes offline
-10. Verify https
-11. Include support for VPN server/client (enable/disable VPN status polling and related VPN entities)
-12. Include device trackers (disable for non-AP routers to avoid duplicate entries)
-13. Nest each tracked client under the router device (off by default; clients always get a MAC-linked device; disabling later does not remove already-created device cards)
-14. Include DHCP reservations sensor and add/delete services (default on)
-15. Include DHCP leases sensor (default on)
-16. Include LTE serving cells sensors (default on; disable to skip probing/polling on routers without this feature)
+8. Stay logged in between updates (default off; fork) — log in once and keep the session instead of logging in and out on every update, saving the router the login work. TP-Link routers allow one session, and logging in to the router's web page takes it over; Home Assistant notices on its next update and leaves the router alone (see the next option). Buttons, switches and services use the same session.
+9. Minutes to leave the router alone after another login takes over (0–120; default 3; fork; held login only) — no updates, and actions from Home Assistant are refused, so the web page keeps the session while you change settings. Logging out of the web page doesn't shorten the wait.
+10. Scan pause (0–1440 minutes; default 20) — how long "Router data fetching" stays off before auto re-enable (`0` = never auto re-enable)
+11. Offline timeout (0–86400 seconds; default 0) — grace period before a missing device tracker goes offline
+12. Verify https
+13. Include support for VPN server/client (enable/disable VPN status polling and related VPN entities)
+14. Include device trackers (disable for non-AP routers to avoid duplicate entries)
+15. Nest each tracked client under the router device (off by default; clients always get a MAC-linked device; disabling later does not remove already-created device cards)
+16. Include DHCP reservations sensor and add/delete services (default on)
+17. Include DHCP leases sensor (default on)
+18. Include LTE serving cells sensors (default on; disable to skip probing/polling on routers without this feature)
 
 Transient poll failures (timeouts, dropped connections, session expiry) are retried automatically. Authorization failures (wrong password / HTTP 401) are not retried. A failing SMS mailbox fetch does not fail the whole update.
 An unreachable router during setup fails only that config entry (`Failed to set up`) and does not block other TP-Link Router entries.

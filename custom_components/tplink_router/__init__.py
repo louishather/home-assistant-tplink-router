@@ -28,6 +28,10 @@ from .const import (
     DEFAULT_FAILURE_COOLDOWN,
     CONF_SLOW_SCAN_INTERVAL,
     DEFAULT_SLOW_SCAN_INTERVAL,
+    CONF_HOLD_SESSION,
+    DEFAULT_HOLD_SESSION,
+    CONF_YIELD_MINUTES,
+    DEFAULT_YIELD_MINUTES,
     CONF_SCAN_PAUSE,
     CONF_OFFLINE_TIMEOUT,
     DEFAULT_SCAN_RETRIES,
@@ -316,6 +320,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                               CONF_FAILURE_COOLDOWN, DEFAULT_FAILURE_COOLDOWN),
                                           slow_scan_interval_seconds=entry.data.get(
                                               CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL),
+                                          hold_session=entry.data.get(
+                                              CONF_HOLD_SESSION, DEFAULT_HOLD_SESSION),
+                                          yield_minutes=entry.data.get(
+                                              CONF_YIELD_MINUTES, DEFAULT_YIELD_MINUTES),
                                           scan_pause_minutes=entry.data.get(CONF_SCAN_PAUSE, DEFAULT_SCAN_PAUSE),
                                           offline_timeout_seconds=entry.data.get(
                                               CONF_OFFLINE_TIMEOUT, DEFAULT_OFFLINE_TIMEOUT),
@@ -366,7 +374,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, platforms)
 
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        # Fork: free the router's single session if this entry held it
+        if getattr(coordinator, "hold_session", False) is True:
+            async with coordinator._lock:
+                await hass.async_add_executor_job(coordinator.close_session)
         if not hass.data[DOMAIN]:
             for svc in SERVICES:
                 if hass.services.has_service(DOMAIN, svc):

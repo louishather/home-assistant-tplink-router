@@ -15,6 +15,8 @@ from .const import (
     MAX_SCAN_PAUSE, MAX_OFFLINE_TIMEOUT,
     CONF_FAILURE_COOLDOWN, DEFAULT_FAILURE_COOLDOWN, MAX_FAILURE_COOLDOWN,
     CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL, MAX_SLOW_SCAN_INTERVAL,
+    CONF_HOLD_SESSION, DEFAULT_HOLD_SESSION, CONF_YIELD_MINUTES, DEFAULT_YIELD_MINUTES,
+    MAX_YIELD_MINUTES,
 )
 from .coordinator import TPLinkRouterCoordinator
 from homeassistant.const import (
@@ -42,6 +44,10 @@ FAILURE_COOLDOWN_SCHEMA = vol.All(
 SLOW_SCAN_INTERVAL_SCHEMA = vol.All(
     vol.Coerce(int),
     vol.Range(min=0, max=MAX_SLOW_SCAN_INTERVAL),
+)
+YIELD_MINUTES_SCHEMA = vol.All(
+    vol.Coerce(int),
+    vol.Range(min=0, max=MAX_YIELD_MINUTES),
 )
 SCAN_PAUSE_SCHEMA = vol.All(
     vol.Coerce(int),
@@ -83,6 +89,14 @@ def _user_schema(data: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_SLOW_SCAN_INTERVAL,
                 default=data.get(CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL),
             ): SLOW_SCAN_INTERVAL_SCHEMA,
+            vol.Optional(
+                CONF_HOLD_SESSION,
+                default=data.get(CONF_HOLD_SESSION, DEFAULT_HOLD_SESSION),
+            ): cv.boolean,
+            vol.Optional(
+                CONF_YIELD_MINUTES,
+                default=data.get(CONF_YIELD_MINUTES, DEFAULT_YIELD_MINUTES),
+            ): YIELD_MINUTES_SCHEMA,
             vol.Optional(
                 CONF_SCAN_PAUSE,
                 default=data.get(CONF_SCAN_PAUSE, DEFAULT_SCAN_PAUSE),
@@ -238,6 +252,14 @@ class OptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                     CONF_SLOW_SCAN_INTERVAL,
                     default=data.get(CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL),
                 ): SLOW_SCAN_INTERVAL_SCHEMA,
+                vol.Optional(
+                    CONF_HOLD_SESSION,
+                    default=data.get(CONF_HOLD_SESSION, DEFAULT_HOLD_SESSION),
+                ): cv.boolean,
+                vol.Optional(
+                    CONF_YIELD_MINUTES,
+                    default=data.get(CONF_YIELD_MINUTES, DEFAULT_YIELD_MINUTES),
+                ): YIELD_MINUTES_SCHEMA,
                 vol.Optional(
                     CONF_SCAN_PAUSE,
                     default=data.get(CONF_SCAN_PAUSE, DEFAULT_SCAN_PAUSE),
