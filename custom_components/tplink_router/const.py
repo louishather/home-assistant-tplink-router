@@ -11,16 +11,20 @@ CONF_SCAN_RETRIES = "scan_retries"
 CONF_SCAN_BACKOFF = "scan_backoff"
 CONF_SCAN_PAUSE = "scan_pause"
 CONF_OFFLINE_TIMEOUT = "offline_timeout"
+CONF_FAILURE_COOLDOWN = "failure_cooldown"
 DEFAULT_USER = "admin"
 DEFAULT_HOST = "http://192.168.0.1"
 DEFAULT_SCAN_RETRIES = 3
 DEFAULT_SCAN_BACKOFF = 1.0
 DEFAULT_SCAN_PAUSE = 20
 DEFAULT_OFFLINE_TIMEOUT = 0
+# Fork: seconds to skip polling after a failed update, so a router that locks out logins can recover
+DEFAULT_FAILURE_COOLDOWN = 120
 MAX_SCAN_RETRIES = 10
 MAX_SCAN_BACKOFF = 30.0
 MAX_SCAN_PAUSE = 1440
 MAX_OFFLINE_TIMEOUT = 86400
+MAX_FAILURE_COOLDOWN = 3600
 
 EVENT_NEW_DEVICE = f"{DOMAIN}_new_device"
 EVENT_ONLINE = f"{DOMAIN}_device_online"

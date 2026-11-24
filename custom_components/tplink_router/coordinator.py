@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover - older tplinkrouterc6u without Access C
     BlockedDevice = Any  # type: ignore[misc, assignment]
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.update_coordinator import UpdateFailed
 from .const import (
     DOMAIN,
     DEFAULT_NAME,
@@ -187,6 +188,7 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
             backoff_seconds: float = 1.0,
             scan_pause_minutes: int = DEFAULT_SCAN_PAUSE,
             offline_timeout_seconds: int = DEFAULT_OFFLINE_TIMEOUT,
+            failure_cooldown_seconds: int = 0,
             reservations: list[IPv4Reservation] | None = None,
             support_dhcp_reservations: bool = True,
             mesh_nodes: list[MeshNode] | None = None,
@@ -208,6 +210,9 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
         self.backoff_seconds = backoff_seconds
         self.scan_pause_minutes = scan_pause_minutes
         self.offline_timeout_seconds = offline_timeout_seconds
+        # Fork: after an update fails (all retries used), don't log in again until this time.
+        self.failure_cooldown_seconds = failure_cooldown_seconds
+        self.cooldown_until: datetime | None = None
         # list (incl. []) means "ask each poll"; None means the client cannot provide
         # a node list. Setup probes once so entities exist before the first interval.
         self.mesh_nodes: list[MeshNode] | None = mesh_nodes
@@ -375,7 +380,31 @@ class TPLinkRouterCoordinator(DataUpdateCoordinator):
         await self._run_router_request(callback)
 
     async def _async_update_data(self):
-        """Asynchronous update of all data."""
+        """Asynchronous update of all data, waiting out the cooldown after a failed update."""
+        cooldown_until = getattr(self, "cooldown_until", None)
+        if cooldown_until is not None:
+            if datetime.now() < cooldown_until:
+                # Keep entities unavailable rather than showing stale data as fresh.
+                raise UpdateFailed(
+                    f"Waiting until {cooldown_until:%H:%M:%S} after a failed update "
+                    "before logging in to the router again"
+                )
+            self.cooldown_until = None
+        try:
+            await self._async_update_data_with_retries()
+        except Exception:
+            cooldown = int(getattr(self, "failure_cooldown_seconds", 0) or 0)
+            if cooldown > 0:
+                self.cooldown_until = datetime.now() + timedelta(seconds=cooldown)
+                self.logger.warning(
+                    "TPLink Router update failed; not polling %s again for %s s",
+                    self.router.host,
+                    cooldown,
+                )
+            raise
+
+    async def _async_update_data_with_retries(self):
+        """One update: authorize, read everything, log out, retrying transient failures."""
         retries = max(1, int(self.retries))
         last_error: Exception | None = None
 

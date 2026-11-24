@@ -2,7 +2,8 @@
 
 Fork of AlexandrErohin/home-assistant-tplink-router, installed in Louis's Home Assistant through
 HACS as a custom repository. It adds a DHCP Leases sensor (`get_ipv4_dhcp_leases`), used by the
-DHCP dashboard in louishather/haos-vibe. Shared rules for Louis's repos (CI, branches, working
+DHCP dashboard in louishather/haos-vibe, and a wait after a failed update (`failure_cooldown`) for
+routers that lock out logins. Shared rules for Louis's repos (CI, branches, working
 pattern) are in haos-vibe's `CONVENTIONS.md`.
 
 - Keep the diff from upstream small so upstream merges stay easy: add, don't restructure.
