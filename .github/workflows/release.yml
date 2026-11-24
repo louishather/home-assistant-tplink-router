@@ -1,20 +1,30 @@
 name: "Release"
 
+# Fork: two ways to release.
+# - Push (any branch) that changes the version in manifest.json, e.g. 2.48.0-lh.2: creates tag
+#   v<version> on that commit and publishes a release with tplink_router.zip and the version's
+#   CHANGELOG section. A version that already has a release is skipped, so every release keeps
+#   its own version and older ones stay installable in HACS for rollback.
+# - Publishing a release by hand in the GitHub UI: the ZIP is built with the tag as the version.
 on:
   release:
     types:
       - "published"
+  push:
+    paths:
+      - "custom_components/tplink_router/manifest.json"
 
 permissions: {}
 
-# One upload per release: two runs racing on the same asset leave the release without the ZIP
+# One run per release: two runs racing on the same asset leave the release without the ZIP
 concurrency:
-  group: release-${{ github.event.release.tag_name }}
+  group: release-${{ github.event.release.tag_name || github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    name: "Release"
+    name: "Release (published by hand)"
+    if: github.event_name == 'release'
     runs-on: "ubuntu-latest"
     permissions:
       contents: write
@@ -38,3 +48,63 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ github.workspace }}/custom_components/tplink_router/tplink_router.zip
+
+  release-on-version-bump:
+    name: "Release (version bump pushed)"
+    if: github.event_name == 'push'
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: write
+    steps:
+      - name: "Checkout the repository"
+        uses: "actions/checkout@v4"
+
+      - name: "Read the version"
+        id: version
+        shell: "bash"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(jq -r .version custom_components/tplink_router/manifest.json)
+          tag="v${version#v}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists; nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "Release notes from CHANGELOG.md"
+        if: steps.version.outputs.exists == 'false'
+        shell: "bash"
+        run: |
+          version="${{ steps.version.outputs.tag }}"
+          version="${version#v}"
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Fork release $version." > notes.md
+          echo "Branch: ${GITHUB_REF_NAME}" >> notes.md
+
+      - name: "ZIP the integration directory"
+        if: steps.version.outputs.exists == 'false'
+        shell: "bash"
+        run: |
+          cd custom_components/tplink_router
+          zip tplink_router.zip -r ./
+
+      - name: "Create the tag and release"
+        if: steps.version.outputs.exists == 'false'
+        shell: "bash"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            custom_components/tplink_router/tplink_router.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --notes-file notes.md
